@@ -1,6 +1,6 @@
-const passport = require("passport");
-const GoogleStrategy = require("passport-google-oauth20").Strategy;
-const Doctor = require("../models/Doctor"); // or your User model if combining both roles
+import passport from "passport";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import Doctor from "../models/Doctor.js"; // Ensure the file extension is included
 
 passport.serializeUser((user, done) => {
   done(null, user.id);
@@ -8,7 +8,6 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (id, done) => {
   try {
-    // Here you can fetch user by id from the database
     const user = await Doctor.findById(id);
     done(null, user);
   } catch (err) {
@@ -30,9 +29,7 @@ passport.use(
           user = await Doctor.create({
             name: profile.displayName,
             email: profile.emails[0].value,
-            // For OAuth users, you might not have a password
             password: null,
-            // You can optionally set defaults for other fields
             phone: null
           });
         }
@@ -44,4 +41,4 @@ passport.use(
   )
 );
 
-module.exports = passport;
+export default passport;
