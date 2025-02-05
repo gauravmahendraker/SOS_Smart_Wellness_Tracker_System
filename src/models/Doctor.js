@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 
 const DoctorSchema = new mongoose.Schema({
+    googleId: { type: String, unique: true },
     name: String,
     email: { type: String, unique: true },
     password: String,

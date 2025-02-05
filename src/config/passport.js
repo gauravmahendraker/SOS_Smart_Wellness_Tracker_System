@@ -1,13 +1,59 @@
-import passport from "passport";
-import { Strategy as GoogleStrategy } from "passport-google-oauth20";
-import Doctor from "../models/Doctor.js"; // Ensure the file extension is included
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const Doctor = require('../models/Doctor');
+const Patient = require('../models/Patient');
+
+// For doctors
+passport.use('google-doctor', new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: '/auth/google/callback/doctor'
+}, async (accessToken, refreshToken, profile, done) => {
+    try {
+        // Find or create doctor user
+        let doctor = await Doctor.findOne({ googleId: profile.id });
+        if (!doctor) {
+            doctor = await Doctor.create({
+                googleId: profile.id,
+                email: profile.emails[0].value,
+                name: profile.displayName
+            });
+        }
+        return done(null, doctor);
+    } catch (error) {
+        return done(error, null);
+    }
+}));
+
+// For patients
+passport.use('google-patient', new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: '/auth/google/callback/patient'
+}, async (accessToken, refreshToken, profile, done) => {
+    try {
+        // Find or create patient user
+        let patient = await Patient.findOne({ googleId: profile.id });
+        if (!patient) {
+            patient = await Patient.create({
+                googleId: profile.id,
+                email: profile.emails[0].value,
+                name: profile.displayName
+            });
+        }
+        return done(null, patient);
+    } catch (error) {
+        return done(error, null);
+    }
+}));
 
 passport.serializeUser((user, done) => {
-  done(null, user.id);
+    done(null, user.id);
 });
 
 passport.deserializeUser(async (id, done) => {
   try {
+    // Here you can fetch user by id from the database
     const user = await Doctor.findById(id);
     done(null, user);
   } catch (err) {
@@ -29,7 +75,9 @@ passport.use(
           user = await Doctor.create({
             name: profile.displayName,
             email: profile.emails[0].value,
+            // For OAuth users, you might not have a password
             password: null,
+            // You can optionally set defaults for other fields
             phone: null
           });
         }
