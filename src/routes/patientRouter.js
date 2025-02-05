@@ -1,5 +1,5 @@
 import { Router } from "express";
-import Patient from "../models/Patient.js"; // Adjust the path if necessary
+import { Patient } from "../models/export.js";
 
 const patientRouter = Router();
 
