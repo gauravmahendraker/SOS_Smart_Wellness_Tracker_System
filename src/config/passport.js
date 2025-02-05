@@ -1,7 +1,8 @@
-const passport = require('passport');
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const Doctor = require('../models/Doctor');
-const Patient = require('../models/Patient');
+import passport from 'passport';
+import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import Doctor from '../models/Doctor.js';
+import Patient from '../models/Patient.js';
+
 
 // For doctors
 passport.use('google-doctor', new GoogleStrategy({
@@ -10,7 +11,6 @@ passport.use('google-doctor', new GoogleStrategy({
     callbackURL: '/auth/google/callback/doctor'
 }, async (accessToken, refreshToken, profile, done) => {
     try {
-        // Find or create doctor user
         let doctor = await Doctor.findOne({ googleId: profile.id });
         if (!doctor) {
             doctor = await Doctor.create({
@@ -32,7 +32,6 @@ passport.use('google-patient', new GoogleStrategy({
     callbackURL: '/auth/google/callback/patient'
 }, async (accessToken, refreshToken, profile, done) => {
     try {
-        // Find or create patient user
         let patient = await Patient.findOne({ googleId: profile.id });
         if (!patient) {
             patient = await Patient.create({
