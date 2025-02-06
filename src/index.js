@@ -2,7 +2,6 @@ import 'dotenv/config';
 import express from "express";
 import cors from "cors";
 import connectDB from "./config/db.js";
-import { doctorRouter, patientRouter, appointmentRouter } from './routes/export.js';
 const app = express();
 import session from 'express-session';
 import passport from './config/passport.js';
