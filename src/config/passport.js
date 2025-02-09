@@ -2,24 +2,29 @@ import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import Doctor from '../models/Doctor.js';
 import Patient from '../models/Patient.js';
+import { google } from 'googleapis';
 
 
-// For doctors
+const findOrCreateUser =  async( Model, userProfile ) => {
+  let user = await Model.findOne({ googleId: userProfile.id });
+  if( !user ){
+    user = await Model.create({
+            googleId: userProfile.id,
+            email: userProfile.emails[0].value,
+            name: userProfile.displayName
+    })
+  }
+  return user;
+}
+
 passport.use('google-doctor', new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     callbackURL: '/auth/google/callback/doctor'
 }, async (accessToken, refreshToken, profile, done) => {
     try {
-        let doctor = await Doctor.findOne({ googleId: profile.id });
-        if (!doctor) {
-            doctor = await Doctor.create({
-                googleId: profile.id,
-                email: profile.emails[0].value,
-                name: profile.displayName
-            });
-        }
-        return done(null, doctor);
+        const doctor = await findOrCreateUser( Doctor, profile);
+        return done(null, {...doctor.toObject(), role:'doctor' });
     } catch (error) {
         return done(error, null);
     }
@@ -32,60 +37,28 @@ passport.use('google-patient', new GoogleStrategy({
     callbackURL: '/auth/google/callback/patient'
 }, async (accessToken, refreshToken, profile, done) => {
     try {
-        let patient = await Patient.findOne({ googleId: profile.id });
-        if (!patient) {
-            patient = await Patient.create({
-                googleId: profile.id,
-                email: profile.emails[0].value,
-                name: profile.displayName
-            });
-        }
-        return done(null, patient);
+        const patient = await findOrCreateUser( Patient, profile);
+        return done(null, {...patient.toObject(), role:'patient' });
     } catch (error) {
         return done(error, null);
     }
 }));
 
 passport.serializeUser((user, done) => {
-    done(null, user.id);
+    done(null, {id: user._id, role: user.role}  );
 });
 
-passport.deserializeUser(async (id, done) => {
+passport.deserializeUser(async (obj, done) => {
   try {
     // Here you can fetch user by id from the database
-    const user = await Doctor.findById(id);
-    done(null, user);
+    console.log("Deserializing user:", obj); 
+    let user = obj.role === 'doctor' ? await Doctor.findById(obj.id) : await Patient.findById(obj.id);
+    done(null, user ? { ...user.toObject(), role: obj.role } : null);
   } catch (err) {
     done(err, null);
   }
 });
 
-passport.use(
-  new GoogleStrategy(
-    {
-      clientID: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "/api/auth/google/callback",
-    },
-    async (accessToken, refreshToken, profile, done) => {
-      try {
-        let user = await Doctor.findOne({ email: profile.emails[0].value });
-        if (!user) {
-          user = await Doctor.create({
-            name: profile.displayName,
-            email: profile.emails[0].value,
-            // For OAuth users, you might not have a password
-            password: null,
-            // You can optionally set defaults for other fields
-            phone: null
-          });
-        }
-        return done(null, user);
-      } catch (error) {
-        return done(error, null);
-      }
-    }
-  )
-);
+
 
 export default passport;
