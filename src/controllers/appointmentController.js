@@ -169,6 +169,41 @@ export const cancelAppointment = async (req, res) => {
     }
 };
 
+// Get all booked appointment slots for a doctor
+export const getDoctorAppointments = async (req, res) => {
+    try {
+        const { doctorId } = req.body;
+
+        // Fetch all confirmed appointments for the doctor
+        const appointments = await Appointment.find({
+            doctor: doctorId,
+            status: "confirmed",
+        }).populate("patient", "name email"); // Populate patient details (optional)
+
+        if (!appointments || appointments.length === 0) {
+            return res.status(200).json({ message: "No booked appointments found", data: [] });
+        }
+
+        // Format the response
+        const formattedAppointments = appointments.map((appointment) => ({
+            patientName: appointment.patient.name,
+            patientEmail: appointment.patient.email,
+            date: appointment.date,
+            timeSlotStart: appointment.timeSlotStart,
+            duration: appointment.duration,
+            timeZone: appointment.timeZone,
+        }));
+
+        res.status(200).json({
+            message: "Booked appointments fetched successfully",
+            data: formattedAppointments,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Error fetching booked appointments", error });
+    }
+};
+
 // Utility function to check slot availability
 const isSlotAvailable = (availableSlots, requestedStartTime, requestedEndTime) => {
     return availableSlots.some((slot) => {
