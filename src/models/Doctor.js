@@ -7,6 +7,9 @@ const DoctorSchema = new mongoose.Schema({
     password: String,
     specialization: String,
     location: String,
+    calendarLink: { type: String },  
+    accessToken: { type: String }, 
+    refreshToken: { type: String }, 
     availableSlots: [
         {
             start: { type: Date, required: true, index: true },  // Always stored in UTC

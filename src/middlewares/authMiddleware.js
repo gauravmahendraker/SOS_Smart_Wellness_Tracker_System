@@ -2,7 +2,7 @@ export const ensureAuthenticated = ( req, res, next)=>{
     if( req.isAuthenticated() ){
         return next();
     }
-    res.status(401).json({error:'User not authenticated'});
+    res.status(401).json({error:'User not authenticated, Log In'});
 }
 
 export const ensureRole = (role)=>{
@@ -10,6 +10,6 @@ export const ensureRole = (role)=>{
         if( req.isAuthenticated() && req.user.role == role ){
             return next();
         }
-        res.status(403).json({error: 'User access denied'});
+        res.status(403).json({error: 'User access denied, Not logged in correct role'});
     }
 }
