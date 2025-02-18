@@ -12,6 +12,7 @@ const AppointmentSchema = new mongoose.Schema({
         enum: ["confirmed", "canceled", "completed"],
         default: "confirmed",
     },
+    // paymentStatus:{} to add
     googleEventId: { type: String, unique: true },
 });
 

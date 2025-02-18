@@ -133,12 +133,15 @@ passport.use('google-doctor', new GoogleStrategy({
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   callbackURL: '/auth/google/callback/doctor',
   scope: ['profile', 'email', 'https://www.googleapis.com/auth/calendar.readonly'],
-  accessType: 'offline',
-  prompt: 'consent',
+  // accessType: 'offline',
+  // prompt: 'consent',
 }, async (accessToken, refreshToken, profile, done) => {
   try {
     console.log("refreshToken: ", refreshToken);
     const doctor = await findOrCreateUser(Doctor, profile, accessToken, refreshToken);
+    if(refreshToken){
+      doctor.refreshToken = refreshToken;
+    }  
     await refreshAccessToken_f(doctor);
     return done(null, {
       ...doctor.toObject(),
@@ -160,6 +163,9 @@ passport.use('google-patient', new GoogleStrategy({
 }, async (accessToken, refreshToken, profile, done) => {
   try {
     const patient = await findOrCreateUser(Patient, profile, accessToken, refreshToken);
+    if(refreshToken){
+      patient.refreshToken = refreshToken;
+    }  
     await refreshAccessToken_f(patient);
     return done(null, {
       ...patient.toObject(),
