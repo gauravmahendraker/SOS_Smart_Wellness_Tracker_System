@@ -4,76 +4,23 @@ import jwt from "jsonwebtoken";
 import { google } from "googleapis";
 import Patient from "../models/Patient.js";
 import Doctor from "../models/Doctor.js";
+import { findOrCreateUser, generateToken } from "../utils/authUtils.js";
 
 const router = express.Router();
 
+const FRONTEND_URL = process.env.REACT_APP_FRONTEND_URL; // Get the frontend URL from the environment variable
 
-const findOrCreateUser = async (
-  Model,
-  userProfile,
-  accessToken,
-  refreshToken
-) => {
-  const oauth2Client = new google.auth.OAuth2();
-  oauth2Client.setCredentials({ access_token: accessToken });
-
-  const calendar = google.calendar({ version: "v3", auth: oauth2Client });
-
-  let calendarLink = "";
-  try {
-    const { data } = await calendar.calendarList.get({ calendarId: "primary" });
-    calendarLink = data.id
-      ? `https://calendar.google.com/calendar/embed?src=${encodeURIComponent(data.id)}`
-      : "";
-  } catch (error) {
-    console.error("Error fetching Google Calendar link:", error);
-  }
-
-  let user = await Model.findOne({ googleId: userProfile.id });
-
-  if (!user) {
-    user = await Model.create({
-      googleId: userProfile.id,
-      email: userProfile.email,
-      name: userProfile.name,
-      accessToken: accessToken,
-      refreshToken: refreshToken || "",
-      calendarLink: calendarLink,
-    });
-  } else {
-    user.accessToken = accessToken;
-    if (refreshToken) {
-      user.refreshToken = refreshToken;
-    }
-    if (calendarLink) {
-      user.calendarLink = calendarLink;
-    }
-    await user.save();
-  }
-
-  return user;
+// Helper function to generate redirect URI
+const getRedirectUri = (userType) => {
+  return `${FRONTEND_URL}/auth/callback/${userType}`;
 };
 
-// prompt: 'consent'
-
-const generateToken = (user) => {
-  return jwt.sign(
-    {
-      id: user._id,
-      role: user.role,
-    },
-    process.env.JWT_SECRET,
-    {
-      expiresIn: "7d",
-    }
-  );
-};
-
+// Route for doctor's login
 router.get("/login/doctor", (req, res) => {
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI_DOCTOR // Should point to frontend
+    getRedirectUri("doctor") // Use the helper function to get the correct redirect URI
   );
 
   const authUrl = oauth2Client.generateAuthUrl({
@@ -82,25 +29,24 @@ router.get("/login/doctor", (req, res) => {
     scope: [
       "profile",
       "email",
-      "https://www.googleapis.com/auth/calendar.readonly",
+      "https://www.googleapis.com/auth/calendar",
     ],
   });
 
   res.json({ authUrl }); // Send OAuth URL to frontend
 });
 
-//when user is authenticated from google and redirected to frontend the frontend posts the code to callback to exchnage it with jwt tokens
+// Callback route for doctor's authentication
 router.post("/auth/google/callback/doctor", async (req, res) => {
-  const {code} = req.body;
-  console.log(code)
+  const { code } = req.body;
   if (!code) {
-    return res.status(400).json({ error: " Authentication code is missing " });
+    return res.status(400).json({ error: "Authentication code is missing" });
   }
   try {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI_DOCTOR
+      getRedirectUri("doctor") // Ensure the correct redirect URI is set
     );
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
@@ -116,32 +62,38 @@ router.post("/auth/google/callback/doctor", async (req, res) => {
   }
 });
 
+// Route for patient's login
 router.get("/login/patient", (req, res) => {
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI_PATIENT // Should point to frontend
+    getRedirectUri("patient") // Use the helper function to get the correct redirect URI
   );
 
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
-    scope: ["profile", "email"],
+    scope: [
+      "profile",
+      "email",
+      "https://www.googleapis.com/auth/calendar", // Add calendar access for the patient
+    ],
   });
 
-  res.json({ authUrl }); // Send OAuth URL to frontend
+  res.json({ authUrl });// Send OAuth URL to frontend
 });
 
+// Callback route for patient's authentication
 router.post("/auth/google/callback/patient", async (req, res) => {
-  const {code} = req.body;
+  const { code } = req.body;
   if (!code) {
-    return res.status(400).json({ error: " Authentication code is missing " });
+    return res.status(400).json({ error: "Authentication code is missing" });
   }
   try {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI_PATIENT
+      getRedirectUri("patient") // Ensure the correct redirect URI is set
     );
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
@@ -156,25 +108,5 @@ router.post("/auth/google/callback/patient", async (req, res) => {
     res.status(500).json({ error: "Authentication failed" });
   }
 });
-
-
-
-//JSON method to send post request of code from frontend to callback
-// const exchangeAuthCode = async (code) => {
-//   try {
-//     const response = await fetch("http://your-backend-url/auth/google/callback/doctor", {
-//       method: "POST",
-//       headers: {
-//         "Content-Type": "application/json",
-//       },
-//       body: JSON.stringify({ code }),
-//     });
-//     const data = await response.json();
-//     console.log(data); // Contains JWT and user info
-//   } catch (error) {
-//     console.error("Error exchanging auth code:", error);
-//   }
-// };
-
 
 export default router;
