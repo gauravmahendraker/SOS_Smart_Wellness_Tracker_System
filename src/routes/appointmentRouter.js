@@ -4,12 +4,14 @@ import {
     bookAppointment,
     cancelAppointment,
     getDoctorAppointments,
+    getPatientAppointments,
 } from "../controllers/appointmentController.js";
 import { ensureAuthenticated, ensureRole } from "../middlewares/authMiddleware.js";
 
 const appointmentRouter = express.Router();
 
-// Routes for patient to book and cancel appointments
+// Routes for patient to view, book and cancel appointments
+appointmentRouter.get("/my-appointments", ensureAuthenticated, ensureRole('patient'), getPatientAppointments);
 appointmentRouter.post("/check-availability", ensureAuthenticated, ensureRole('patient'), checkAvailability);
 appointmentRouter.post("/book", ensureAuthenticated, ensureRole('patient'), bookAppointment);
 appointmentRouter.post("/cancel", ensureAuthenticated, ensureRole('patient'), cancelAppointment);
