@@ -82,3 +82,6 @@ This project is a **SOS_Smart_Wellness_Tracker_System** that utilizes Google Cal
 ## License
 MIT License
 Course project for Service Oriented Systems
+
+# Frontend Repo
+https://github.com/gauravmahendraker/SOS_frontend
