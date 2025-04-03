@@ -12,13 +12,13 @@ export const ensureAuthenticated = (req, res, next) => {
         req.user = decoded;
         next();
     } catch (error) {
-        return res.status(401).json({ error: "Invalid or expired token" });
+        return res.status(401).json({ error: "Invalid or expired token, User must login" });
     }
 };
 
 export const ensureRole = (role) => {
     return (req, res, next) => {
-        if (!req.user || req.user.role !== role) {
+        if (!req.user || (req.user.role !== role && role !== 'any')) {
             return res.status(403).json({ error: "User access denied, incorrect role" });
         }
         next();

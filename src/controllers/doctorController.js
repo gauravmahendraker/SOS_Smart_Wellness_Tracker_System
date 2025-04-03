@@ -71,3 +71,34 @@ export const updateDoctorDetails = async (req, res) => {
         res.status(500).json({ message: "Error updating doctor", error: error.message });
     }
 };
+
+
+export const searchDoctors = async (req, res) => {
+    try {
+        const { name, specialization, location } = req.query;
+
+        // Build the search query
+        let query = {};
+        if (name) {
+            query.name = { $regex: name, $options: "i" }; // Case-insensitive partial match
+        }
+        if (specialization) {
+            query.specialization = specialization; // Exact match
+        }
+        if (location) {
+            query.location = { $regex: location, $options: "i" }; // Case-insensitive match
+        }
+
+        // Fetch doctors matching the query
+        const doctors = await Doctor.find(query).select("-password"); // Exclude password from response
+
+        if (doctors.length === 0) {
+            return res.status(404).json({ message: "No doctors found matching the criteria" });
+        }
+
+        res.status(200).json({ message: "Doctors found", data: doctors });
+    } catch (error) {
+        console.error("Error searching doctors:", error);
+        res.status(500).json({ message: "Error searching doctors", error: error.message });
+    }
+};
