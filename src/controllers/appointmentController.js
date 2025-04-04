@@ -1,6 +1,7 @@
 import { Doctor, Appointment, MedicalRecord } from "../models/export.js";
 import moment from "moment-timezone";
 import mongoose from "mongoose";
+import { refreshAccessToken, createGoogleCalendarEvent } from "../utils/calendarUtils.js";
 
 // Check availability for a doctor on a specific date
 export const checkAvailability = async (req, res) => {
@@ -94,6 +95,14 @@ export const bookAppointment = async (req, res) => {
             return res.status(404).json({ message: "Doctor not found" });
         }
 
+        // Find patient for calendar event
+        const patient = await mongoose.model("Patient").findById(patientId);
+        if (!patient) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(404).json({ message: "Patient not found" });
+        }
+
         // Convert requested times to UTC
         const requestedStartTime = moment.tz(timeSlotStart, timeZone).utc().toDate();
         const requestedEndTime = moment(requestedStartTime).add(duration, "minutes").toDate();
@@ -123,10 +132,15 @@ export const bookAppointment = async (req, res) => {
             return [slot];
         });
 
-        // Save doctor with updated slots
+        // Refresh doctor's Google Calendar access token if needed
+        if (doctorExists.refreshToken) {
+            doctorExists.accessToken = await refreshAccessToken(doctorExists.refreshToken);
+        }
+
+        // Save doctor with updated slots and tokens
         await doctorExists.save({ session });
 
-        // Create appointment without googleEventId
+        // Create appointment
         const appointmentData = {
             doctor,
             patient: patientId,
@@ -138,6 +152,18 @@ export const bookAppointment = async (req, res) => {
         };
 
         const appointment = new Appointment(appointmentData);
+
+        // Create Google Calendar event if doctor has calendar setup
+        if (doctorExists.calendarLink && doctorExists.accessToken) {
+            try {
+                const googleEventId = await createGoogleCalendarEvent(doctorExists, patient, appointment);
+                appointment.googleEventId = googleEventId;
+            } catch (calendarError) {
+                console.error("Error creating Google Calendar event:", calendarError);
+                // Continue with appointment booking even if calendar event creation fails
+            }
+        }
+
         await appointment.save({ session });
 
         // If everything succeeded, commit the transaction
@@ -171,15 +197,41 @@ export const cancelAppointment = async (req, res) => {
             return res.status(400).json({ message: "Appointment is already canceled" });
         }
 
-        // Update the appointment status to "canceled"
-        appointment.status = "canceled";
-        await appointment.save();
-
-        // Find the doctor and re-add the canceled time slot
+        // Get doctor for Google Calendar operations
         const doctor = await Doctor.findById(appointment.doctor);
         if (!doctor) {
             return res.status(404).json({ message: "Doctor not found" });
         }
+
+        // Cancel Google Calendar event if it exists
+        if (appointment.googleEventId && doctor.accessToken && doctor.calendarLink) {
+            try {
+                // Refresh access token
+                doctor.accessToken = await refreshAccessToken(doctor.refreshToken);
+                await doctor.save();
+
+                // Delete event from Google Calendar
+                const { google } = await import('googleapis');
+                const oauth2Client = new google.auth.OAuth2();
+                oauth2Client.setCredentials({
+                    access_token: doctor.accessToken,
+                    refresh_token: doctor.refreshToken,
+                });
+
+                const calendar = google.calendar({ version: "v3", auth: oauth2Client });
+                await calendar.events.delete({
+                    calendarId: doctor.calendarLink,
+                    eventId: appointment.googleEventId
+                });
+            } catch (calendarError) {
+                console.error("Error canceling Google Calendar event:", calendarError);
+                // Continue with appointment cancellation even if calendar event deletion fails
+            }
+        }
+
+        // Update the appointment status to "canceled"
+        appointment.status = "canceled";
+        await appointment.save();
 
         const canceledSlotStart = new Date(appointment.timeSlotStart);
         const canceledSlotEnd = new Date(canceledSlotStart.getTime() + appointment.duration * 60000);
@@ -225,6 +277,7 @@ export const getDoctorAppointments = async (req, res) => {
             timeSlotStart: appointment.timeSlotStart,
             duration: appointment.duration,
             timeZone: appointment.timeZone,
+            googleEventId: appointment.googleEventId || null,
         }));
 
         res.status(200).json({
@@ -274,8 +327,6 @@ export const getPatientAppointments = async (req, res) => {
     }
 };
 
-
-
 // Get detailed appointment information
 export const getAppointmentDetails = async (req, res) => {
     try {
@@ -302,6 +353,7 @@ export const getAppointmentDetails = async (req, res) => {
             duration: appointment.duration,
             timeZone: appointment.timeZone,
             status: appointment.status,
+            googleEventId: appointment.googleEventId || null,
         };
 
         res.status(200).json({
