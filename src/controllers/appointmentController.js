@@ -240,8 +240,8 @@ export const cancelAppointment = async (req, res) => {
 // Get all booked appointment slots for a doctor
 export const getDoctorAppointments = async (req, res) => {
     try {
-        const { doctorId } = req.body;
-
+        const doctorId  = req.user.id;
+        console.log(req.user.id);
         // Fetch all confirmed appointments for the doctor
         const appointments = await Appointment.find({
             doctor: doctorId,
