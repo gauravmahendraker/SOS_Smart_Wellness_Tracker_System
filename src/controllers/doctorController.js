@@ -102,3 +102,29 @@ export const searchDoctors = async (req, res) => {
         res.status(500).json({ message: "Error searching doctors", error: error.message });
     }
 };
+
+export const getMyProfile = async (req, res) => {
+    try {
+        if (req.user) {
+            const user = req.user;
+
+            const doctor = await Doctor.findById(user.id).select('-password');
+
+            if (!doctor) {
+                return res.status(404).json({ message: 'Doctor not found' });
+            }
+
+            return res.status(200).json({
+                data: doctor
+            });
+        } else {
+            return res.status(401).json({ message: 'User not logged in' });
+        }
+    } catch (error) {
+        console.error('Error fetching doctor:', error);
+        return res.status(500).json({
+            message: 'Error fetching doctor',
+            error: error.message
+        });
+    }
+};

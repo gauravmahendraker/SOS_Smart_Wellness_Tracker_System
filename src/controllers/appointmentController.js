@@ -1,4 +1,4 @@
-import { Doctor, Appointment } from "../models/export.js";
+import { Doctor, Appointment, MedicalRecord } from "../models/export.js";
 import moment from "moment-timezone";
 import mongoose from "mongoose";
 
@@ -311,6 +311,45 @@ export const getAppointmentDetails = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Error fetching appointment details", error });
+    }
+};
+
+export const addMedicalRecord = async (req, res) => {
+    try {
+        const doctorId = req.user.id; // Authenticated doctor
+        const { appointmentId, description, fileUrl } = req.body;
+
+        if (!appointmentId || !fileUrl) {
+            return res.status(400).json({ message: "Appointment ID and file URL are required" });
+        }
+
+        const appointment = await Appointment.findById(appointmentId);
+        if (!appointment) {
+            return res.status(404).json({ message: "Appointment not found" });
+        }
+
+        // Ensure the doctor is the one who attended the appointment
+        if (appointment.doctor.toString() !== doctorId) {
+            return res.status(403).json({ message: "You are not authorized to add a record for this appointment" });
+        }
+
+        const record = new MedicalRecord({
+            appointment: appointment._id,
+            patient: appointment.patient,
+            doctor: appointment.doctor,
+            description,
+            fileUrl,
+        });
+
+        await record.save();
+
+        res.status(201).json({
+            message: "Medical record added successfully",
+            data: record,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Error adding medical record", error });
     }
 };
 
