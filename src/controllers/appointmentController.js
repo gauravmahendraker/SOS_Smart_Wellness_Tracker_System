@@ -1,5 +1,6 @@
 import { Doctor, Appointment } from "../models/export.js";
 import moment from "moment-timezone";
+import mongoose from "mongoose";
 
 // Check availability for a doctor on a specific date
 export const checkAvailability = async (req, res) => {
@@ -65,11 +66,31 @@ export const checkAvailability = async (req, res) => {
 
 // Book an appointment
 export const bookAppointment = async (req, res) => {
-    const { doctor, patient, date, timeSlotStart, duration, timeZone } = req.body;
+    const patientId = req.user.userId || req.user._id || req.user.id;
+    console.log("Patient ID:", patientId);
+    console.log("Decoded user:", req.user);
+    const { doctor, date, timeSlotStart, duration, timeZone } = req.body;
+
+    // Validation checks
+    if (!doctor || !date || !timeSlotStart || !duration) {
+        return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    if (!patientId) {
+        return res.status(400).json({
+            message: "Patient ID not found in authentication token. Please log in again."
+        });
+    }
+
+    // Start a session for the transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
     try {
-        const doctorExists = await Doctor.findById(doctor);
+        const doctorExists = await Doctor.findById(doctor).session(session);
         if (!doctorExists) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(404).json({ message: "Doctor not found" });
         }
 
@@ -79,6 +100,8 @@ export const bookAppointment = async (req, res) => {
 
         // Validate availability
         if (!isSlotAvailable(doctorExists.availableSlots, requestedStartTime, requestedEndTime)) {
+            await session.abortTransaction();
+            session.endSession();
             return res.status(400).json({ message: "Requested time slot is not available" });
         }
 
@@ -100,25 +123,35 @@ export const bookAppointment = async (req, res) => {
             return [slot];
         });
 
-        await doctorExists.save();
+        // Save doctor with updated slots
+        await doctorExists.save({ session });
 
-        // Create and save the appointment
-        const appointment = new Appointment({
+        // Create appointment without googleEventId
+        const appointmentData = {
             doctor,
-            patient,
+            patient: patientId,
             date: moment.tz(date, timeZone).utc().toDate(),
             timeSlotStart: requestedStartTime,
             duration,
             timeZone,
             status: "confirmed",
-        });
+        };
 
-        await appointment.save();
+        const appointment = new Appointment(appointmentData);
+        await appointment.save({ session });
+
+        // If everything succeeded, commit the transaction
+        await session.commitTransaction();
+        session.endSession();
 
         res.status(201).json({ message: "Appointment booked successfully", data: appointment });
     } catch (error) {
+        // If an error occurred, abort the transaction
+        await session.abortTransaction();
+        session.endSession();
+
         console.error(error);
-        res.status(500).json({ message: "Error booking appointment", error });
+        res.status(500).json({ message: "Error booking appointment", error: error.message });
     }
 };
 
@@ -207,13 +240,12 @@ export const getDoctorAppointments = async (req, res) => {
 // Get all booked appointment slots for a patient
 export const getPatientAppointments = async (req, res) => {
     try {
-        const { patientId } = req.body;
-
+        const patientId = req.user.id;
         // Fetch all confirmed appointments for the patient
         const appointments = await Appointment.find({
             patient: patientId,
             status: "confirmed",
-        }).populate("doctor", "name specialization"); // Populate doctor details
+        }).populate("doctor"); // Populate doctor details
 
         if (!appointments || appointments.length === 0) {
             return res.status(200).json({ message: "No booked appointments found", data: [] });

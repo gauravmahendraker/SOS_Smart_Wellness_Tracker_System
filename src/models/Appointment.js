@@ -13,7 +13,7 @@ const AppointmentSchema = new mongoose.Schema({
         default: "confirmed",
     },
     // paymentStatus:{} to add
-    googleEventId: { type: String, unique: true },
+    googleEventId: { type: String },
 });
 
 // Convert `timeSlotStart` to UTC before saving
