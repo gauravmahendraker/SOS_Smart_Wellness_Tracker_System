@@ -21,39 +21,8 @@ export const checkAvailability = async (req, res) => {
             return slot.start >= dayStartUTC && slot.end <= dayEndUTC;
         });
 
-        // Get booked appointments
-        const appointments = await Appointment.find({
-            doctor,
-            timeSlotStart: { $gte: dayStartUTC, $lt: dayEndUTC },
-        });
-
-        // Remove booked slots
-        let updatedAvailableSlots = [...availableSlotsForDate];
-        for (const appointment of appointments) {
-            const appointmentStartTime = new Date(appointment.timeSlotStart);
-            const appointmentEndTime = new Date(appointmentStartTime.getTime() + appointment.duration * 60000);
-
-            updatedAvailableSlots = updatedAvailableSlots.flatMap((slot) => {
-                const slotStartTime = new Date(slot.start);
-                const slotEndTime = new Date(slot.end);
-
-                if (appointmentStartTime < slotEndTime && appointmentEndTime > slotStartTime) {
-                    const newSlots = [];
-                    if (slotStartTime < appointmentStartTime) {
-                        newSlots.push({ start: slotStartTime, end: appointmentStartTime });
-                    }
-                    if (slotEndTime > appointmentEndTime) {
-                        newSlots.push({ start: appointmentEndTime, end: slotEndTime });
-                    }
-                    return newSlots;
-                }
-
-                return [slot];
-            });
-        }
-
         // Convert available slots to requested time zone for display
-        const formattedSlots = updatedAvailableSlots.map((slot) => ({
+        const formattedSlots = availableSlotsForDate.map((slot) => ({
             start: moment.utc(slot.start).tz(timeZone).format(),
             end: moment.utc(slot.end).tz(timeZone).format(),
         }));
@@ -192,12 +161,12 @@ export const cancelAppointment = async (req, res) => {
             return res.status(404).json({ message: "Appointment not found" });
         }
 
-        // Check if the appointment is already canceled
+        // Check if already canceled
         if (appointment.status === "canceled") {
             return res.status(400).json({ message: "Appointment is already canceled" });
         }
 
-        // Get doctor for Google Calendar operations
+        // Get doctor details
         const doctor = await Doctor.findById(appointment.doctor);
         if (!doctor) {
             return res.status(404).json({ message: "Doctor not found" });
@@ -208,9 +177,8 @@ export const cancelAppointment = async (req, res) => {
             try {
                 // Refresh access token
                 doctor.accessToken = await refreshAccessToken(doctor.refreshToken);
-                await doctor.save();
+                await doctor.save(); // Save new access token
 
-                // Delete event from Google Calendar
                 const { google } = await import('googleapis');
                 const oauth2Client = new google.auth.OAuth2();
                 oauth2Client.setCredentials({
@@ -219,34 +187,49 @@ export const cancelAppointment = async (req, res) => {
                 });
 
                 const calendar = google.calendar({ version: "v3", auth: oauth2Client });
+
+                // Extract calendarId from calendarLink
+                const url = new URL(doctor.calendarLink);
+                const calendarId = url.searchParams.get('src');
+
+                // Delete the event
                 await calendar.events.delete({
-                    calendarId: doctor.calendarLink,
-                    eventId: appointment.googleEventId
+                    calendarId,
+                    eventId: appointment.googleEventId,
                 });
             } catch (calendarError) {
-                console.error("Error canceling Google Calendar event:", calendarError);
-                // Continue with appointment cancellation even if calendar event deletion fails
+                if (calendarError.code === 410) {
+                    console.warn("Google Calendar event already deleted.");
+                } else {
+                    console.error("Error canceling Google Calendar event:", calendarError);
+                }
+                // Proceed regardless
             }
         }
 
-        // Update the appointment status to "canceled"
+        // Update appointment status
         appointment.status = "canceled";
         await appointment.save();
 
+        // Add slot back to doctor's availability
         const canceledSlotStart = new Date(appointment.timeSlotStart);
         const canceledSlotEnd = new Date(canceledSlotStart.getTime() + appointment.duration * 60000);
 
-        // Add the canceled slot back to available slots
-        doctor.availableSlots.push({ start: canceledSlotStart, end: canceledSlotEnd });
+        // Refetch the doctor to avoid VersionError
+        const updatedDoctor = await Doctor.findById(doctor._id);
+        updatedDoctor.availableSlots.push({ start: canceledSlotStart, end: canceledSlotEnd });
 
         // Merge overlapping slots
-        doctor.availableSlots = mergeSlots(doctor.availableSlots);
-
-        await doctor.save();
+        updatedDoctor.availableSlots = mergeSlots(updatedDoctor.availableSlots);
+        doctor.markModified("availableSlots");
+        await updatedDoctor.save();
 
         res.status(200).json({
             message: "Appointment canceled successfully and slot re-added to availability",
-            data: { appointment, updatedSlots: doctor.availableSlots },
+            data: {
+                appointment,
+                updatedSlots: updatedDoctor.availableSlots,
+            },
         });
     } catch (error) {
         console.error(error);
@@ -418,23 +401,30 @@ const isSlotAvailable = (availableSlots, requestedStartTime, requestedEndTime) =
 const mergeSlots = (slots) => {
     if (!slots || slots.length === 0) return [];
 
-    // Sort slots by start time
-    slots.sort((a, b) => new Date(a.start) - new Date(b.start));
+    const sorted = [...slots].sort((a, b) => new Date(a.start) - new Date(b.start));
+    const merged = [];
 
-    const mergedSlots = [slots[0]];
+    for (let i = 0; i < sorted.length; i++) {
+        const currStart = new Date(sorted[i].start);
+        const currEnd = new Date(sorted[i].end);
 
-    for (let i = 1; i < slots.length; i++) {
-        const lastMergedSlot = mergedSlots[mergedSlots.length - 1];
-        const currentSlot = slots[i];
-
-        if (new Date(lastMergedSlot.end) >= new Date(currentSlot.start)) {
-            lastMergedSlot.end = new Date(
-                Math.max(new Date(lastMergedSlot.end).getTime(), new Date(currentSlot.end).getTime())
+        if (
+            merged.length > 0 &&
+            new Date(merged[merged.length - 1].end) >= currStart
+        ) {
+            merged[merged.length - 1].end = new Date(
+                Math.max(
+                    new Date(merged[merged.length - 1].end),
+                    currEnd
+                )
             );
         } else {
-            mergedSlots.push(currentSlot);
+            merged.push({
+                start: new Date(currStart),
+                end: new Date(currEnd),
+            });
         }
     }
 
-    return mergedSlots;
+    return merged;
 };
