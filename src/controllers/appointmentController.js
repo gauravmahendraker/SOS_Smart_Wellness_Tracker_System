@@ -241,10 +241,10 @@ export const getDoctorAppointments = async (req, res) => {
 export const getPatientAppointments = async (req, res) => {
     try {
         const patientId = req.user.id;
-        // Fetch all confirmed appointments for the patient
+
+        // Fetch all appointments for the patient (not just confirmed)
         const appointments = await Appointment.find({
             patient: patientId,
-            status: "confirmed",
         }).populate("doctor"); // Populate doctor details
 
         if (!appointments || appointments.length === 0) {
@@ -253,12 +253,15 @@ export const getPatientAppointments = async (req, res) => {
 
         // Format the response
         const formattedAppointments = appointments.map((appointment) => ({
+            _id: appointment._id,
             doctorName: appointment.doctor.name,
             doctorSpecialization: appointment.doctor.specialization,
             date: appointment.date,
             timeSlotStart: appointment.timeSlotStart,
             duration: appointment.duration,
             timeZone: appointment.timeZone,
+            status: appointment.status,
+            googleEventId: appointment.googleEventId || null,
         }));
 
         res.status(200).json({
@@ -268,6 +271,46 @@ export const getPatientAppointments = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Error fetching booked appointments", error });
+    }
+};
+
+
+
+// Get detailed appointment information
+export const getAppointmentDetails = async (req, res) => {
+    try {
+        const { appointmentId } = req.body;
+
+        // Find the appointment with doctor and patient details
+        const appointment = await Appointment.findById(appointmentId)
+            .populate("doctor", "name specialization email")
+            .populate("patient", "name email");
+
+        if (!appointment) {
+            return res.status(404).json({ message: "Appointment not found" });
+        }
+
+        // Format response
+        const appointmentDetails = {
+            doctorName: appointment.doctor.name,
+            doctorSpecialization: appointment.doctor.specialization,
+            doctorEmail: appointment.doctor.email,
+            patientName: appointment.patient.name,
+            patientEmail: appointment.patient.email,
+            date: appointment.date,
+            timeSlotStart: appointment.timeSlotStart,
+            duration: appointment.duration,
+            timeZone: appointment.timeZone,
+            status: appointment.status,
+        };
+
+        res.status(200).json({
+            message: "Appointment details fetched successfully",
+            data: appointmentDetails,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Error fetching appointment details", error });
     }
 };
 

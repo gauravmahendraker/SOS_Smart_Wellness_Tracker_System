@@ -5,6 +5,7 @@ import {
     cancelAppointment,
     getDoctorAppointments,
     getPatientAppointments,
+    getAppointmentDetails,
 } from "../controllers/appointmentController.js";
 import { ensureAuthenticated, ensureRole } from "../middlewares/authMiddleware.js";
 
@@ -20,4 +21,6 @@ appointmentRouter.post("/cancel", ensureAuthenticated, ensureRole('patient'), ca
 appointmentRouter.get("/doctor/booked-slots", ensureAuthenticated, ensureRole('doctor'), getDoctorAppointments);
 appointmentRouter.post("/doctor/cancel", ensureAuthenticated, ensureRole('doctor'), cancelAppointment);
 
+// Route for doctor and patient to get appointment details
+appointmentRouter.post("/appointment-details", ensureAuthenticated, ensureRole('any'), getAppointmentDetails);
 export default appointmentRouter;
