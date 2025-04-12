@@ -241,7 +241,6 @@ export const cancelAppointment = async (req, res) => {
 export const getDoctorAppointments = async (req, res) => {
     try {
         const doctorId  = req.user.id;
-        console.log(req.user.id);
         // Fetch all confirmed appointments for the doctor
         const appointments = await Appointment.find({
             doctor: doctorId,
@@ -254,6 +253,7 @@ export const getDoctorAppointments = async (req, res) => {
 
         // Format the response
         const formattedAppointments = appointments.map((appointment) => ({
+            _id:appointment._id,
             patientName: appointment.patient.name,
             patientEmail: appointment.patient.email,
             date: appointment.date,
