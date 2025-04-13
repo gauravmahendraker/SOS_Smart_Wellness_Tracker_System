@@ -240,28 +240,39 @@ export const cancelAppointment = async (req, res) => {
 // Get all booked appointment slots for a doctor
 export const getDoctorAppointments = async (req, res) => {
     try {
-        const doctorId  = req.user.id;
-        // Fetch all confirmed appointments for the doctor
+        const doctorId = req.user.id;
+
         const appointments = await Appointment.find({
             doctor: doctorId,
             status: "confirmed",
-        }).populate("patient", "name email"); // Populate patient details (optional)
+        }).populate("patient", "name email");
 
         if (!appointments || appointments.length === 0) {
             return res.status(200).json({ message: "No booked appointments found", data: [] });
         }
 
-        // Format the response
-        const formattedAppointments = appointments.map((appointment) => ({
-            _id:appointment._id,
-            patientName: appointment.patient.name,
-            patientEmail: appointment.patient.email,
-            date: appointment.date,
-            timeSlotStart: appointment.timeSlotStart,
-            duration: appointment.duration,
-            timeZone: appointment.timeZone,
-            googleEventId: appointment.googleEventId || null,
-        }));
+        const formattedAppointments = await Promise.all(
+            appointments.map(async (appointment) => {
+                const records = await MedicalRecord.find({ appointment: appointment._id }).select("description fileUrl");
+
+                const prescriptions = records.map(record => ({
+                    description: record.description,
+                    fileUrl: record.fileUrl,
+                }));
+
+                return {
+                    _id: appointment._id,
+                    patientName: appointment.patient.name,
+                    patientEmail: appointment.patient.email,
+                    date: appointment.date,
+                    timeSlotStart: appointment.timeSlotStart,
+                    duration: appointment.duration,
+                    timeZone: appointment.timeZone,
+                    googleEventId: appointment.googleEventId || null,
+                    prescriptions,
+                };
+            })
+        );
 
         res.status(200).json({
             message: "Booked appointments fetched successfully",
@@ -278,27 +289,35 @@ export const getPatientAppointments = async (req, res) => {
     try {
         const patientId = req.user.id;
 
-        // Fetch all appointments for the patient (not just confirmed)
-        const appointments = await Appointment.find({
-            patient: patientId,
-        }).populate("doctor"); // Populate doctor details
+        const appointments = await Appointment.find({ patient: patientId }).populate("doctor");
 
         if (!appointments || appointments.length === 0) {
             return res.status(200).json({ message: "No booked appointments found", data: [] });
         }
 
-        // Format the response
-        const formattedAppointments = appointments.map((appointment) => ({
-            _id: appointment._id,
-            doctorName: appointment.doctor.name,
-            doctorSpecialization: appointment.doctor.specialization,
-            date: appointment.date,
-            timeSlotStart: appointment.timeSlotStart,
-            duration: appointment.duration,
-            timeZone: appointment.timeZone,
-            status: appointment.status,
-            googleEventId: appointment.googleEventId || null,
-        }));
+        const formattedAppointments = await Promise.all(
+            appointments.map(async (appointment) => {
+                const records = await MedicalRecord.find({ appointment: appointment._id }).select("description fileUrl");
+
+                const prescriptions = records.map(record => ({
+                    description: record.description,
+                    fileUrl: record.fileUrl,
+                }));
+
+                return {
+                    _id: appointment._id,
+                    doctorName: appointment.doctor.name,
+                    doctorSpecialization: appointment.doctor.specialization,
+                    date: appointment.date,
+                    timeSlotStart: appointment.timeSlotStart,
+                    duration: appointment.duration,
+                    timeZone: appointment.timeZone,
+                    status: appointment.status,
+                    googleEventId: appointment.googleEventId || null,
+                    prescriptions,
+                };
+            })
+        );
 
         res.status(200).json({
             message: "Booked appointments fetched successfully",
@@ -323,8 +342,12 @@ export const getAppointmentDetails = async (req, res) => {
         if (!appointment) {
             return res.status(404).json({ message: "Appointment not found" });
         }
+        const records = await MedicalRecord.find({ appointment: appointmentId }).select("description fileUrl");
+        const prescriptions = records.map(record => ({
+            description: record.description,
+            fileUrl: record.fileUrl,
+        }));
 
-        // Format response
         const appointmentDetails = {
             doctorName: appointment.doctor.name,
             doctorSpecialization: appointment.doctor.specialization,
@@ -337,6 +360,7 @@ export const getAppointmentDetails = async (req, res) => {
             timeZone: appointment.timeZone,
             status: appointment.status,
             googleEventId: appointment.googleEventId || null,
+            prescriptions,
         };
 
         res.status(200).json({
