@@ -46,7 +46,7 @@ export const updateDoctorDetails = async (req, res) => {
     const { email } = req.params;
     let updates = req.body;
 
-    if (updates.email) {
+    if (updates.email && updates.email !== email) {
         return res.status(400).json({ message: "Email cannot be updated" });
     }
 
