@@ -2,6 +2,7 @@ import { Doctor, Appointment, MedicalRecord } from "../models/export.js";
 import moment from "moment-timezone";
 import mongoose from "mongoose";
 import { refreshAccessToken, createGoogleCalendarEvent } from "../utils/calendarUtils.js";
+import { uploadToCloudinary } from "../utils/uploadCloudinary.js";
 
 // Check availability for a doctor on a specific date
 export const checkAvailability = async (req, res) => {
@@ -375,11 +376,12 @@ export const getAppointmentDetails = async (req, res) => {
 
 export const addMedicalRecord = async (req, res) => {
     try {
+        console.log("request for medical record");
         const doctorId = req.user.id; // Authenticated doctor
-        const { appointmentId, description, fileUrl } = req.body;
+        const { appointmentId, description, file } = req.body;
 
-        if (!appointmentId || !fileUrl) {
-            return res.status(400).json({ message: "Appointment ID and file URL are required" });
+        if(file){
+            return res.status(400).json({ error: "No file uploaded" });
         }
 
         const appointment = await Appointment.findById(appointmentId);
@@ -392,11 +394,13 @@ export const addMedicalRecord = async (req, res) => {
             return res.status(403).json({ message: "You are not authorized to add a record for this appointment" });
         }
 
+        const fileUrl = await uploadToCloudinary(req.file);
+
         const record = new MedicalRecord({
             appointment: appointment._id,
             patient: appointment.patient,
             doctor: appointment.doctor,
-            description,
+            description: description || "",
             fileUrl,
         });
 
