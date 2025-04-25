@@ -2,8 +2,8 @@
 https://github.com/gauravmahendraker/SOS_frontend
 
 # Deployed at
-https://sos-smart-wellness-tracker-system.onrender.com  - backend
-https://sos-frontend-six.vercel.app  - frontend
+- https://sos-smart-wellness-tracker-system.onrender.com  - backend
+- https://sos-frontend-six.vercel.app  - frontend
 
 # SOS_Smart_Wellness_Tracker_System
 
