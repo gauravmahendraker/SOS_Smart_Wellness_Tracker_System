@@ -13,27 +13,31 @@ export const checkAvailability = async (req, res) => {
         if (!doctorExists) {
             return res.status(404).json({ message: "Doctor not found" });
         }
-
-        // Convert date to UTC range
-        const dayStartUTC = moment.tz(`${date} 00:00:00`, timeZone).utc().toDate();
-        const dayEndUTC = moment.tz(`${date} 23:59:59`, timeZone).utc().toDate();
-
-        let availableSlotsForDate = doctorExists.availableSlots.filter((slot) => {
-            return slot.start >= dayStartUTC && slot.end <= dayEndUTC;
+        // Filter slots where the start time matches the given date in the given timezone
+        const availableSlotsForDate = doctorExists.availableSlots.filter((slot) => {
+            const slotDate = moment.utc(slot.start).format('YYYY-MM-DD');
+            console.log(slotDate);
+            console.log(date);
+            console.log("over");
+            return slotDate === date;
         });
 
-        // Convert available slots to requested time zone for display
+        // Format to requested timezone
         const formattedSlots = availableSlotsForDate.map((slot) => ({
-            start: moment.utc(slot.start).tz(timeZone).format(),
-            end: moment.utc(slot.end).tz(timeZone).format(),
+            start: moment(slot.start).tz(timeZone).format(),
+            end: moment(slot.end).tz(timeZone).format(),
         }));
 
-        res.status(200).json({ message: "Available slots fetched successfully", data: formattedSlots });
+        res.status(200).json({
+            message: "Available slots fetched successfully",
+            data: formattedSlots
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Error checking availability", error });
     }
 };
+
 
 // Book an appointment
 export const bookAppointment = async (req, res) => {
@@ -316,6 +320,7 @@ export const getPatientAppointments = async (req, res) => {
                     status: appointment.status,
                     googleEventId: appointment.googleEventId || null,
                     prescriptions,
+                    ...(appointment.isPaid !== undefined && { isPaid: appointment.isPaid })
                 };
             })
         );
@@ -362,6 +367,7 @@ export const getAppointmentDetails = async (req, res) => {
             status: appointment.status,
             googleEventId: appointment.googleEventId || null,
             prescriptions,
+            ...(appointment.isPaid !== undefined && { isPaid: appointment.isPaid })
         };
 
         res.status(200).json({

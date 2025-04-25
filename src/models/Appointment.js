@@ -14,6 +14,7 @@ const AppointmentSchema = new mongoose.Schema({
     },
     // paymentStatus:{} to add
     googleEventId: { type: String, unique: true }, // Google Calendar event ID
+    isPaid: {type: Boolean, default:false}
 });
 
 // Convert `timeSlotStart` to UTC before saving

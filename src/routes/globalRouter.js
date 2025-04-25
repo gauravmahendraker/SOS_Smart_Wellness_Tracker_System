@@ -5,6 +5,7 @@ import appointmentRouter from './appointmentRouter.js';
 import authRoutes from './auth.js';
 import dashboardRouter from './dashboardRouter.js';
 import temprouter from './temp.js';
+import paymentRouter from './paymentRouter.js'
 
 const router = express.Router();
 
@@ -14,5 +15,6 @@ router.use('/appointment', appointmentRouter);
 router.use('/', authRoutes);
 router.use('/', temprouter);
 router.use('/dashboard', dashboardRouter);
+router.use('/payment', paymentRouter);
 
 export default router;
