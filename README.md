@@ -1,3 +1,9 @@
+# Frontend Repo
+https://github.com/gauravmahendraker/SOS_frontend
+
+# Deployed at
+https://sos-smart-wellness-tracker-system.onrender.com
+
 # SOS_Smart_Wellness_Tracker_System
 
 This project is a **SOS_Smart_Wellness_Tracker_System** that utilizes Google Calendar for scheduling.
@@ -83,8 +89,3 @@ This project is a **SOS_Smart_Wellness_Tracker_System** that utilizes Google Cal
 MIT License
 Course project for Service Oriented Systems
 
-# Frontend Repo
-https://github.com/gauravmahendraker/SOS_frontend
-
-# Deployed at
-https://sos-smart-wellness-tracker-system.onrender.com
