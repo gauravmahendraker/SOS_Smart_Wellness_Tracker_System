@@ -85,3 +85,6 @@ Course project for Service Oriented Systems
 
 # Frontend Repo
 https://github.com/gauravmahendraker/SOS_frontend
+
+# Deployed at
+https://sos-smart-wellness-tracker-system.onrender.com
